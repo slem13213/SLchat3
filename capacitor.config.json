@@ -1,0 +1,13 @@
+{
+  "appId": "com.slem2.slchat",
+  "appName": "SLchat",
+  "webDir": "www",
+  "server": {
+    "url": "https://slchatt.netlify.app",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
