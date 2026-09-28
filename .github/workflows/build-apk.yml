@@ -49,6 +49,13 @@ jobs:
           else
             echo "google-services.json не найден в корне репозитория — сборка продолжится, но push-уведомления работать не будут, пока файл не добавлен"
           fi
+          echo "=== проверка сразу после копирования ==="
+          ls -la android/app/google-services.json || echo "ФАЙЛА НЕТ на этом этапе"
+
+      - name: Показать конец android/app/build.gradle (проверка блока google-services)
+        run: |
+          echo "=== последние 20 строк android/app/build.gradle ==="
+          tail -n 20 android/app/build.gradle
 
       - name: Добавить разрешения (камера/микрофон/уведомления) в AndroidManifest.xml
         run: |
@@ -77,11 +84,20 @@ jobs:
       - name: Синхронизировать веб-код с Android-проектом
         run: npx cap sync android
 
+      - name: Проверка перед сборкой (файл всё ещё на месте?)
+        run: |
+          echo "=== проверка перед сборкой ==="
+          ls -la android/app/google-services.json || echo "ФАЙЛА НЕТ перед сборкой — вот причина проблемы"
+          echo "=== последние 20 строк android/app/build.gradle перед сборкой ==="
+          tail -n 20 android/app/build.gradle
+
       - name: Собрать debug APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --info 2>&1 | tee /tmp/build.log | tail -n 200
+          echo "=== упоминания google-services в логе сборки ==="
+          grep -i "google-services" /tmp/build.log || echo "google-services вообще не упоминается в логе сборки"
 
       - name: Проверить, что google-services реально подключился
         run: |
