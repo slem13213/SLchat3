@@ -1,5 +1,7 @@
 name: Build Android APK
 
+# Запускается автоматически при каждом пуше в main, а ещё можно нажать
+# "Run workflow" вручную на вкладке Actions в репозитории
 on:
   push:
     branches: [ main ]
@@ -23,16 +25,72 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Accept Android SDK licenses
+      - name: Accept Android SDK licenses (на всякий случай)
         run: yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
-      - name: Install npm dependencies
+      - name: Install npm-зависимости
         run: npm install
 
-      - name: Add Android platform
+      - name: Добавить платформу Android (Capacitor)
         run: npx cap add android
 
-      - name: Add camera/microphone permissions
+      - name: Подключить google-services.json и плагин Google Services (для push-уведомлений)
+        run: |
+          if [ -f "google-services.json" ]; then
+            cp google-services.json android/app/google-services.json
+            python3 - <<'EOF'
+          import re
+
+          # 1) Класспас плагина google-services — вставляем именно в блок
+          #    buildscript { dependencies { ... } }, а не в первый попавшийся
+          #    "dependencies {" (их в файле может быть несколько).
+          path = "android/build.gradle"
+          with open(path) as f:
+              content = f.read()
+
+          buildscript_match = re.search(r'buildscript\s*\{', content)
+          if not buildscript_match:
+              raise SystemExit("Не найден блок buildscript { ... } в android/build.gradle")
+
+          # Ищем первую "dependencies {" ПОСЛЕ начала buildscript{...}
+          dep_match = re.search(r'dependencies\s*\{', content[buildscript_match.end():])
+          if not dep_match:
+              raise SystemExit("Не найден dependencies { ... } внутри buildscript в android/build.gradle")
+
+          insert_pos = buildscript_match.end() + dep_match.end()
+          classpath_line = '\n        classpath "com.google.gms:google-services:4.4.1"'
+          content = content[:insert_pos] + classpath_line + content[insert_pos:]
+
+          with open(path, 'w') as f:
+              f.write(content)
+
+          print("=== android/build.gradle после патча ===")
+          print(content)
+          EOF
+
+            python3 - <<'EOF'
+          # 2) Применяем сам плагин в android/app/build.gradle — обязательно
+          #    ПОСЛЕДНЕЙ строкой файла (так требует официальная документация
+          #    Firebase), и только один раз.
+          path = "android/app/build.gradle"
+          with open(path) as f:
+              content = f.read()
+          marker = 'apply plugin: "com.google.gms.google-services"'
+          if marker not in content:
+              content = content.rstrip() + "\n\n" + marker + "\n"
+          with open(path, 'w') as f:
+              f.write(content)
+
+          print("=== android/app/build.gradle после патча ===")
+          print(content)
+          EOF
+
+            echo "google-services.json подключен — push-уведомления будут работать"
+          else
+            echo "google-services.json не найден в корне репозитория — сборка продолжится, но push-уведомления работать не будут, пока файл не добавлен"
+          fi
+
+      - name: Добавить разрешения (камера/микрофон/уведомления) в AndroidManifest.xml
         run: |
           python3 - <<'EOF'
           import re
@@ -43,6 +101,7 @@ jobs:
               '    <uses-permission android:name="android.permission.CAMERA" />\n'
               '    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n'
               '    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n'
+              '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n'
               '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
               '    <uses-feature android:name="android.hardware.microphone" android:required="false" />\n'
           )
@@ -52,19 +111,29 @@ jobs:
           print(content)
           EOF
 
-      - name: Generate app icon from assets/icon.png
+      - name: Сгенерировать иконку приложения из assets/icon.png
         run: npx capacitor-assets generate --android
 
-      - name: Sync web assets
+      - name: Синхронизировать веб-код с Android-проектом
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Собрать debug APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload APK
+      - name: Проверить, что google-services реально подключился
+        run: |
+          FILE="android/app/build/generated/res/google-services/debug/values/values.xml"
+          if [ -f "$FILE" ]; then
+            echo "OK: google-services сгенерировал файл ресурсов, Firebase должен инициализироваться"
+            cat "$FILE"
+          else
+            echo "ПРОБЛЕМА: файл $FILE не найден — google-services плагин не сработал, push-уведомления не будут работать"
+          fi
+
+      - name: Загрузить APK как артефакт
         uses: actions/upload-artifact@v4
         with:
           name: SLchat-apk
