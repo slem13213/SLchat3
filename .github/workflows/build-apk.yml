@@ -106,7 +106,10 @@ jobs:
             echo "OK: google-services сгенерировал файл ресурсов, Firebase должен инициализироваться"
             cat "$FILE"
           else
-            echo "ПРОБЛЕМА: файл $FILE не найден — google-services плагин не сработал, push-уведомления не будут работать"
+            echo "ПРОБЛЕМА: файл $FILE не найден по ожидаемому пути — ищем его где угодно внутри android/app/build:"
+            find android/app/build -iname "*google-services*" -o -iname "values.xml" 2>/dev/null | grep -i google || echo "совсем ничего похожего не найдено"
+            echo "--- и на всякий случай весь google_app_id по всем values.xml ---"
+            grep -rl "google_app_id" android/app/build 2>/dev/null || echo "нигде не найдено google_app_id"
           fi
 
       - name: Загрузить APK как артефакт
