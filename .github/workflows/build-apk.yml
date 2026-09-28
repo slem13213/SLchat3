@@ -34,58 +34,18 @@ jobs:
       - name: Добавить платформу Android (Capacitor)
         run: npx cap add android
 
-      - name: Подключить google-services.json и плагин Google Services (для push-уведомлений)
+      - name: Подключить google-services.json (для push-уведомлений)
         run: |
+          # Свежий Capacitor-проект (npx cap add android) уже сам содержит
+          # весь нужный код для подключения плагина Google Services — он
+          # проверяет наличие android/app/google-services.json и сам
+          # применяет плагин, если файл на месте. Поэтому здесь достаточно
+          # просто положить файл куда нужно — руками ничего в build.gradle
+          # дописывать не нужно (это раньше приводило к дублированию
+          # classpath/apply plugin и ломало сборку).
           if [ -f "google-services.json" ]; then
             cp google-services.json android/app/google-services.json
-            python3 - <<'EOF'
-          import re
-
-          # 1) Класспас плагина google-services — вставляем именно в блок
-          #    buildscript { dependencies { ... } }, а не в первый попавшийся
-          #    "dependencies {" (их в файле может быть несколько).
-          path = "android/build.gradle"
-          with open(path) as f:
-              content = f.read()
-
-          buildscript_match = re.search(r'buildscript\s*\{', content)
-          if not buildscript_match:
-              raise SystemExit("Не найден блок buildscript { ... } в android/build.gradle")
-
-          # Ищем первую "dependencies {" ПОСЛЕ начала buildscript{...}
-          dep_match = re.search(r'dependencies\s*\{', content[buildscript_match.end():])
-          if not dep_match:
-              raise SystemExit("Не найден dependencies { ... } внутри buildscript в android/build.gradle")
-
-          insert_pos = buildscript_match.end() + dep_match.end()
-          classpath_line = '\n        classpath "com.google.gms:google-services:4.4.1"'
-          content = content[:insert_pos] + classpath_line + content[insert_pos:]
-
-          with open(path, 'w') as f:
-              f.write(content)
-
-          print("=== android/build.gradle после патча ===")
-          print(content)
-          EOF
-
-            python3 - <<'EOF'
-          # 2) Применяем сам плагин в android/app/build.gradle — обязательно
-          #    ПОСЛЕДНЕЙ строкой файла (так требует официальная документация
-          #    Firebase), и только один раз.
-          path = "android/app/build.gradle"
-          with open(path) as f:
-              content = f.read()
-          marker = 'apply plugin: "com.google.gms.google-services"'
-          if marker not in content:
-              content = content.rstrip() + "\n\n" + marker + "\n"
-          with open(path, 'w') as f:
-              f.write(content)
-
-          print("=== android/app/build.gradle после патча ===")
-          print(content)
-          EOF
-
-            echo "google-services.json подключен — push-уведомления будут работать"
+            echo "google-services.json скопирован в android/app/ — Capacitor сам подключит плагин Google Services"
           else
             echo "google-services.json не найден в корне репозитория — сборка продолжится, но push-уведомления работать не будут, пока файл не добавлен"
           fi
