@@ -95,9 +95,9 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --info 2>&1 | tee /tmp/build.log | tail -n 200
-          echo "=== упоминания google-services в логе сборки ==="
-          grep -i "google-services" /tmp/build.log || echo "google-services вообще не упоминается в логе сборки"
+          ./gradlew assembleDebug --info --stacktrace 2>&1 | tee /tmp/build.log | tail -n 100
+          echo "=== всё, что связано с google-services (с контекстом после каждой строки) ==="
+          grep -n -iE "google-?services|firebaseapp|processdebuggoogleservices" /tmp/build.log -A 25 || echo "ничего не найдено в логе сборки"
 
       - name: Проверить, что google-services реально подключился
         run: |
