@@ -3,7 +3,7 @@
   "appName": "SLchat",
   "webDir": "www",
   "server": {
-    "url": "https://slchatt.netlify.app",
+    "url": "https://slchat.vercel.app",
     "androidScheme": "https",
     "cleartext": false
   },

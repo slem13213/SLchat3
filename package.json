@@ -2,7 +2,7 @@
   "name": "slchat-app",
   "version": "1.0.0",
   "private": true,
-  "description": "Android-обёртка для SLchat (slchatt.netlify.app) через Capacitor",
+  "description": "Android-обёртка для SLchat (slchat.vercel.app) через Capacitor",
   "dependencies": {
     "@capacitor/android": "^6.1.2",
     "@capacitor/app": "^6.0.1",

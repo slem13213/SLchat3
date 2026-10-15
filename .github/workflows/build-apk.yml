@@ -7,6 +7,10 @@ on:
     branches: [ main ]
   workflow_dispatch: {}
 
+# Нужно, чтобы сборка могла сама публиковать APK во вкладку Releases
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -117,3 +121,18 @@ jobs:
         with:
           name: SLchat-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      # Публикуем APK во вкладку Releases — у него появляется постоянная ссылка
+      # на скачивание без входа в GitHub:
+      # https://github.com/<владелец>/<репозиторий>/releases/latest/download/SLchat.apk
+      - name: Опубликовать APK в Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk SLchat.apk
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" SLchat.apk \
+            --repo "${{ github.repository }}" \
+            --title "SLchat — сборка ${{ github.run_number }}" \
+            --notes "Скачать приложение: SLchat.apk (Android). Открывает сайт https://slchat.vercel.app" \
+            --latest
